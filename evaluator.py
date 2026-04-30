@@ -289,7 +289,7 @@ def evaluate(ast, environment):
             return left_value - right_value, None
         raise Exception(f"Illegal types for {ast["tag"]}:{types}")
     
-    if ast["tag"] == "++":
+    if ast["tag"] == "prefix++":
         target = ast["value"]
 
         if target["tag"] != "identifier":
@@ -298,7 +298,18 @@ def evaluate(ast, environment):
         new_value = environment[target["value"]] + 1
         environment[target["value"]] = new_value
 
-        return new_value, "number"
+        return new_value, None
+    
+    if ast["tag"] == "postfix++":
+        target = ast["value"]
+
+        if target["tag"] != "identifier":
+            raise Exception("++ needs an identifier")
+        #updates value
+        new_value = environment[target["value"]] + 1
+        environment[target["value"]] = new_value
+        #return the old value
+        return new_value - 1 , None
 
 
     if ast["tag"] == "*":

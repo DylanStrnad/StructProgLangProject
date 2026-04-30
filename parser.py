@@ -53,7 +53,16 @@ def parse_simple_expression(tokens):
     token = tokens[0]
 
     if token["tag"] in {"identifier", "boolean", "number", "string"}:
-        return {"tag": token["tag"], "value": token["value"]}, tokens[1:]
+        node = {"tag": token["tag"], "value": token["value"]}
+        tokens = tokens[1:]
+        token = tokens[0]
+        # check for postfix ++
+        if tokens and token["tag"] == "++":
+            tokens = tokens[1:]
+            new_node = {"tag": "postfix++", "value": node}
+            return new_node, tokens
+        else:
+            return node, tokens
 
     if token["tag"] == "null":
         return {"tag": "null"}, tokens[1:]
@@ -74,7 +83,7 @@ def parse_simple_expression(tokens):
     
     if token["tag"] == "++":
         value, tokens = parse_simple_expression(tokens[1:])
-        return {"tag": "++", "value": value}, tokens
+        return {"tag": "prefix++", "value": value}, tokens
     
     if token["tag"] == "--":
         value, tokens = parse_simple_expression(tokens[1:])
@@ -136,7 +145,7 @@ def test_parse_simple_expression():
 
     #testing increment parsing
     ast, tokens = parse_simple_expression(tokenize("++x"))
-    assert ast == { "tag": "++", "value": {"tag": "identifier", "value": "x"}}
+    assert ast == { "tag": "prefix++", "value": {"tag": "identifier", "value": "x"}}
 
     #testing decrement parsing
     ast, tokens = parse_simple_expression(tokenize("--x"))
