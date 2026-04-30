@@ -288,6 +288,18 @@ def evaluate(ast, environment):
         if types == "number-number":
             return left_value - right_value, None
         raise Exception(f"Illegal types for {ast["tag"]}:{types}")
+    
+    if ast["tag"] == "++":
+        target = ast["value"]
+
+        if target["tag"] != "identifier":
+            raise Exception("++ needs an identifier")
+    
+        new_value = environment[target["value"]] + 1
+        environment[target["value"]] = new_value
+
+        return new_value, "number"
+
 
     if ast["tag"] == "*":
         left_value, l_status = evaluate(ast["left"], environment)
