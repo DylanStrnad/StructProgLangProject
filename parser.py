@@ -71,6 +71,14 @@ def parse_simple_expression(tokens):
     if token["tag"] == "!":
         value, tokens = parse_simple_expression(tokens[1:])
         return {"tag": "not", "value": value}, tokens
+    
+    if token["tag"] == "++":
+        value, tokens = parse_simple_expression(tokens[1:])
+        return {"tag": "++", "value": value}, tokens
+    
+    if token["tag"] == "--":
+        value, tokens = parse_simple_expression(tokens[1:])
+        return {"tag": "--", "value": value}, tokens
 
     if token["tag"] == "function":
         return parse_function(tokens)
@@ -123,12 +131,17 @@ def test_parse_simple_expression():
     ast, tokens = parse_simple_expression(tokenize("-1"))
     assert ast == {"tag": "negate", "value": {"tag": "number", "value": 1}}
 
-    ast, tokens = parse_simple_expression(tokenize("--2"))
-    assert ast == {
-        "tag": "negate",
-        "value": {"tag": "negate", "value": {"tag": "number", "value": 2}},
-    }
+    ast, tokens = parse_simple_expression(tokenize("-2"))
+    assert ast == { "tag": "negate", "value": {"tag": "number", "value": 2}}
 
+    #testing increment parsing
+    ast, tokens = parse_simple_expression(tokenize("++x"))
+    assert ast == { "tag": "++", "value": {"tag": "identifier", "value": "x"}}
+
+    #testing decrement parsing
+    ast, tokens = parse_simple_expression(tokenize("--x"))
+    assert ast == { "tag": "--", "value": {"tag": "identifier", "value": "x"}}
+   
     ast, tokens = parse_simple_expression(tokenize("!1"))
     assert ast == {"tag": "not", "value": {"tag": "number", "value": 1}}
 
