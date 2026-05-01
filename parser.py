@@ -89,6 +89,15 @@ def parse_simple_expression(tokens):
         value, tokens = parse_simple_expression(tokens[1:])
         return {"tag": "--", "value": value}, tokens
 
+    if token["tag"] == "+=":
+        value, tokens = parse_simple_expression(tokens[1:])
+        return {"tag": "+=", "value": value}, tokens
+    
+    # NEED TO IMPLEMENT
+    # if token["tag"] == "-=":
+    #     value, tokens = parse_simple_expression(tokens[1:])
+    #     return {"tag": "-=", "value": value}, tokens
+    
     if token["tag"] == "function":
         return parse_function(tokens)
 
@@ -882,7 +891,7 @@ def test_parse_logical_expression():
 
 def parse_assignment_expression(tokens):
     """
-    assignment_expression = [ "extern" ] logical_expression [ "=" assignment_expression ]
+    assignment_expression = || += [ "extern" ] logical_expression [ "=" assignment_expression ]
     """
     extern = False
     if tokens[0]["tag"] == "extern":
@@ -902,6 +911,18 @@ def parse_assignment_expression(tokens):
             left["extern"] = True
 
         return {"tag": "assign", "target": left, "value": right}, tokens
+    
+    # for += operator
+    if tokens[0]["tag"] == "+=":
+        tokens = tokens[1:]
+        right, tokens = parse_assignment_expression(tokens)
+
+        if extern:
+            if left["tag"] != "identifier":
+                raise SyntaxError("extern can only be used with simple identifiers")
+            left["extern"] = True
+
+        return {"tag": "+=", "target": left, "value": right}, tokens
 
     # if no assignment occurred, extern must not be present
     assert not extern, "Can't use extern without assignment."
@@ -961,6 +982,20 @@ def test_parse_assignment_expression():
             "left": {"tag": "identifier", "value": "y"},
             "right": {"tag": "number", "value": 1},
         },
+    }
+
+    ast, tokens = parse_assignment_expression(tokenize("x+=3"))
+    assert ast == {
+        "tag": "+=",
+        "target": {"tag": "identifier", "value": "x"},
+        "value": {"tag": "number", "value": 3},
+    }
+
+    ast, tokens = parse_assignment_expression(tokenize("extern x+=3"))
+    assert ast == {
+        "tag": "+=",
+        "target": {"tag": "identifier", "value": "x"},
+        "value": {"tag": "number", "value": 3},
     }
 
     # extern without assignment (invalid)
