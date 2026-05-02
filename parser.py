@@ -156,6 +156,9 @@ def test_parse_simple_expression():
     ast, tokens = parse_simple_expression(tokenize("++x"))
     assert ast == { "tag": "prefix++", "value": {"tag": "identifier", "value": "x"}}
 
+    ast, tokens = parse_simple_expression(tokenize("x++"))
+    assert ast == { "tag": "postfix++", "value": {"tag": "identifier", "value": "x"}}
+
     #testing decrement parsing
     ast, tokens = parse_simple_expression(tokenize("--x"))
     assert ast == { "tag": "--", "value": {"tag": "identifier", "value": "x"}}
@@ -994,7 +997,7 @@ def test_parse_assignment_expression():
     ast, tokens = parse_assignment_expression(tokenize("extern x+=3"))
     assert ast == {
         "tag": "+=",
-        "target": {"tag": "identifier", "value": "x"},
+        "target": {"tag": "identifier", "value": "x", "extern": True},
         "value": {"tag": "number", "value": 3},
     }
 

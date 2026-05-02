@@ -315,25 +315,54 @@ def evaluate(ast, environment):
         # assert "target" in ast
         target = ast["target"]
         if target["tag"] == "identifier":
-            name = target["value"]
+            target_index = target["value"]
 
             if target.get("extern"):
                 scope = environment
-                while scope is not None and name not in scope:
+                while scope is not None and target_index not in scope:
                     scope = scope.get("$parent")
                 assert (
                     scope is not None
-                ), f"Extern assignment: '{name}' not found in any outer scope"
+                ), f"Extern assignment: '{target_index}' not found in any outer scope"
                 target_base = scope
             else:
                 # Always assign to local scope
                 target_base = environment
         
+        elif target["tag"] == "complex":
+            # Assignment through x[i] or x.a mutates the underlying list/dict.
+            base, base_status = evaluate(target["base"], environment)
+            if base_status == "exit":
+                return base, "exit"
+            index_ast = target["index"]
+
+            if index_ast["tag"] == "string":
+                index = index_ast["value"]
+            else:
+                index, index_status = evaluate(index_ast, environment)
+                if index_status == "exit":
+                    return index, "exit"
+
+            if index is None:
+                raise Exception("Cannot use 'null' as index for assignment.")
+            assert type(index) in [int, float, str], f"Unknown index type [{index}]"
+
+            if isinstance(base, list):
+                assert isinstance(index, int), "List index must be integer"
+                assert 0 <= index < len(base), "List index out of range"
+                target_base = base
+                target_index = index
+            elif isinstance(base, dict):
+                target_base = base
+                target_index = index
+            else:
+                assert False, f"Cannot assign to base of type {type(base)}"
+        
         value, value_status = evaluate(ast["value"], target_base)
         if value_status == "exit":
             return value, "exit"
-        target_base[name] = target_base[name] + value
-        return target_base[name], None
+        target_base[target_index] = target_base[target_index] + value
+        return target_base[target_index], None
 
     if ast["tag"] == "*":
         left_value, l_status = evaluate(ast["left"], environment)
@@ -799,6 +828,20 @@ def test_evaluate_addition():
 def test_evaluate_addition_assignment():
     print("test evaluate addition assignment")
     equals("x+=5", {'x':5}, 10 , {'x':10})
+
+    environment = {"x": [1, 2, 3]}
+    code = "x[1]+=1"
+    ast = parse(tokenize(code))
+    result, _ = evaluate(ast, environment)
+    assert environment["x"][1] == 3
+
+def test_evaluate_prefix_increment():
+    print("test evaluate increment")
+    equals("++x", {'x':5}, 6 , {'x':6})
+
+def test_evaluate_postfix_increment():
+    print("test evaluate postfix increment")
+    equals("x++", {'x':5}, 5 , {'x':6})
 
 def test_evaluate_subtraction():
     print("test evaluate subtraction")
@@ -1303,4 +1346,6 @@ if __name__ == "__main__":
     test_scoping()
     test_closures()
     test_control_flow_scoping_rules()
+    test_evaluate_prefix_increment()
+    test_evaluate_postfix_increment()
     print("done.")
