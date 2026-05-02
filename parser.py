@@ -53,7 +53,16 @@ def parse_simple_expression(tokens):
     token = tokens[0]
 
     if token["tag"] in {"identifier", "boolean", "number", "string"}:
-        return {"tag": token["tag"], "value": token["value"]}, tokens[1:]
+        node = {"tag": token["tag"], "value": token["value"]}
+        tokens = tokens[1:]
+        token = tokens[0]
+        # check for postfix ++
+        if tokens and token["tag"] == "++":
+            tokens = tokens[1:]
+            new_node = {"tag": "postfix++", "value": node}
+            return new_node, tokens
+        else:
+            return node, tokens
 
     if token["tag"] == "null":
         return {"tag": "null"}, tokens[1:]
@@ -74,12 +83,21 @@ def parse_simple_expression(tokens):
     
     if token["tag"] == "++":
         value, tokens = parse_simple_expression(tokens[1:])
-        return {"tag": "++", "value": value}, tokens
+        return {"tag": "prefix++", "value": value}, tokens
     
     if token["tag"] == "--":
         value, tokens = parse_simple_expression(tokens[1:])
         return {"tag": "--", "value": value}, tokens
 
+    if token["tag"] == "+=":
+        value, tokens = parse_simple_expression(tokens[1:])
+        return {"tag": "+=", "value": value}, tokens
+    
+    # NEED TO IMPLEMENT
+    # if token["tag"] == "-=":
+    #     value, tokens = parse_simple_expression(tokens[1:])
+    #     return {"tag": "-=", "value": value}, tokens
+    
     if token["tag"] == "function":
         return parse_function(tokens)
 
@@ -136,7 +154,10 @@ def test_parse_simple_expression():
 
     #testing increment parsing
     ast, tokens = parse_simple_expression(tokenize("++x"))
-    assert ast == { "tag": "++", "value": {"tag": "identifier", "value": "x"}}
+    assert ast == { "tag": "prefix++", "value": {"tag": "identifier", "value": "x"}}
+
+    ast, tokens = parse_simple_expression(tokenize("x++"))
+    assert ast == { "tag": "postfix++", "value": {"tag": "identifier", "value": "x"}}
 
     #testing decrement parsing
     ast, tokens = parse_simple_expression(tokenize("--x"))
@@ -873,7 +894,7 @@ def test_parse_logical_expression():
 
 def parse_assignment_expression(tokens):
     """
-    assignment_expression = [ "extern" ] logical_expression [ "=" assignment_expression ]
+    assignment_expression = || += [ "extern" ] logical_expression [ "=" assignment_expression ]
     """
     extern = False
     if tokens[0]["tag"] == "extern":
@@ -893,6 +914,18 @@ def parse_assignment_expression(tokens):
             left["extern"] = True
 
         return {"tag": "assign", "target": left, "value": right}, tokens
+    
+    # for += operator
+    if tokens[0]["tag"] == "+=":
+        tokens = tokens[1:]
+        right, tokens = parse_assignment_expression(tokens)
+
+        if extern:
+            if left["tag"] != "identifier":
+                raise SyntaxError("extern can only be used with simple identifiers")
+            left["extern"] = True
+
+        return {"tag": "+=", "target": left, "value": right}, tokens
 
     # if no assignment occurred, extern must not be present
     assert not extern, "Can't use extern without assignment."
@@ -952,6 +985,20 @@ def test_parse_assignment_expression():
             "left": {"tag": "identifier", "value": "y"},
             "right": {"tag": "number", "value": 1},
         },
+    }
+
+    ast, tokens = parse_assignment_expression(tokenize("x+=3"))
+    assert ast == {
+        "tag": "+=",
+        "target": {"tag": "identifier", "value": "x"},
+        "value": {"tag": "number", "value": 3},
+    }
+
+    ast, tokens = parse_assignment_expression(tokenize("extern x+=3"))
+    assert ast == {
+        "tag": "+=",
+        "target": {"tag": "identifier", "value": "x", "extern": True},
+        "value": {"tag": "number", "value": 3},
     }
 
     # extern without assignment (invalid)
