@@ -61,6 +61,10 @@ def parse_simple_expression(tokens):
             tokens = tokens[1:]
             new_node = {"tag": "postfix++", "value": node}
             return new_node, tokens
+        elif tokens and token["tag"] == "--":
+            tokens = tokens[1:]
+            new_node = {"tag": "postfix--", "value": node}
+            return new_node, tokens
         else:
             return node, tokens
 
@@ -87,7 +91,7 @@ def parse_simple_expression(tokens):
     
     if token["tag"] == "--":
         value, tokens = parse_simple_expression(tokens[1:])
-        return {"tag": "--", "value": value}, tokens
+        return {"tag": "prefix--", "value": value}, tokens
 
     if token["tag"] == "+=":
         value, tokens = parse_simple_expression(tokens[1:])
@@ -161,7 +165,10 @@ def test_parse_simple_expression():
 
     #testing decrement parsing
     ast, tokens = parse_simple_expression(tokenize("--x"))
-    assert ast == { "tag": "--", "value": {"tag": "identifier", "value": "x"}}
+    assert ast == {"tag": "prefix--", "value": {"tag": "identifier", "value": "x"}}
+
+    ast, tokens = parse_simple_expression(tokenize("x--"))
+    assert ast == {"tag": "postfix--", "value": {"tag": "identifier", "value": "x"}}
    
     ast, tokens = parse_simple_expression(tokenize("!1"))
     assert ast == {"tag": "not", "value": {"tag": "number", "value": 1}}
@@ -926,6 +933,16 @@ def parse_assignment_expression(tokens):
             left["extern"] = True
 
         return {"tag": "+=", "target": left, "value": right}, tokens
+    
+    if tokens[0]["tag"] == "-=":
+        tokens = tokens[1:]
+        right, tokens = parse_assignment_expression(tokens)
+
+        if extern:
+            if left["tag"] != "identifier":
+                raise SyntaxError("extern can only be used with simple identifiers")
+        left["extern"] = True
+        return {"tag": "-=", "target": left, "value": right}, tokens
 
     # if no assignment occurred, extern must not be present
     assert not extern, "Can't use extern without assignment."

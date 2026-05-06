@@ -310,43 +310,51 @@ def evaluate(ast, environment):
         environment[variable["value"]] = new_value
         #return the old value
         return new_value - 1 , None
+    
+    if ast["tag"] == "prefix--":
+        variable = ast["value"]
+        if variable["tag"] != "identifier":
+            raise Exception("-- needs an identifier")
+        new_value = environment[variable["value"]] - 1
+        environment[variable["value"]] = new_value
+        return new_value, None
 
-    if ast["tag"] == "+=":
-        # assert "target" in ast
+    if ast["tag"] == "postfix--":
+        variable = ast["value"]
+        if variable["tag"] != "identifier":
+            raise Exception("-- needs an identifier")
+        old_value = environment[variable["value"]]
+        environment[variable["value"]] = old_value - 1
+        return old_value, None
+
+    if ast["tag"] in ["+=", "-="]:
         target = ast["target"]
+
         if target["tag"] == "identifier":
             target_index = target["value"]
-
             if target.get("extern"):
                 scope = environment
                 while scope is not None and target_index not in scope:
                     scope = scope.get("$parent")
-                assert (
-                    scope is not None
-                ), f"Extern assignment: '{target_index}' not found in any outer scope"
+                assert scope is not None, f"Extern assignment: '{target_index}' not found in any outer scope"
                 target_base = scope
             else:
-                # Always assign to local scope
                 target_base = environment
-        
+
         elif target["tag"] == "complex":
-            # Assignment through x[i] or x.a mutates the underlying list/dict.
             base, base_status = evaluate(target["base"], environment)
             if base_status == "exit":
                 return base, "exit"
             index_ast = target["index"]
-
             if index_ast["tag"] == "string":
                 index = index_ast["value"]
             else:
                 index, index_status = evaluate(index_ast, environment)
                 if index_status == "exit":
                     return index, "exit"
-
             if index is None:
                 raise Exception("Cannot use 'null' as index for assignment.")
             assert type(index) in [int, float, str], f"Unknown index type [{index}]"
-
             if isinstance(base, list):
                 assert isinstance(index, int), "List index must be integer"
                 assert 0 <= index < len(base), "List index out of range"
@@ -357,11 +365,16 @@ def evaluate(ast, environment):
                 target_index = index
             else:
                 assert False, f"Cannot assign to base of type {type(base)}"
-        
-        value, value_status = evaluate(ast["value"], target_base)
+
+        value, value_status = evaluate(ast["value"], environment)
         if value_status == "exit":
             return value, "exit"
-        target_base[target_index] = target_base[target_index] + value
+
+        if ast["tag"] == "+=":
+            target_base[target_index] = target_base[target_index] + value
+        elif ast["tag"] == "-=":
+            target_base[target_index] = target_base[target_index] - value
+
         return target_base[target_index], None
 
     if ast["tag"] == "*":
@@ -842,6 +855,33 @@ def test_evaluate_prefix_increment():
 def test_evaluate_postfix_increment():
     print("test evaluate postfix increment")
     equals("x++", {'x':5}, 5 , {'x':6})
+
+def test_evaluate_subtraction():
+    print("test evaluate subtraction")
+    equals("1-1", {}, 0, {})
+    equals("5-2-1", {}, 2, {})
+    equals("5.5-2.5", {}, 3.0, {})
+    equals("x-y", {"x": 5, "y": 2}, 3)
+
+def test_evaluate_subtract_assignment():
+    print("test evaluate -= ")
+    equals("x-=5", {'x':10}, 5, {'x':5})
+
+    environment = {"x": [1, 2, 3]}
+    code = "x[1]-=1"
+    ast = parse(tokenize(code))
+    result, _ = evaluate(ast, environment)
+    assert environment["x"][1] == 1
+
+def test_evaluate_prefix_decrement():
+    print("test evaluate prefix decrement")
+    equals("--x", {'x':5}, 4, {'x':4})
+
+def test_evaluate_postfix_decrement():
+    print("test evaluate postfix decrement")
+    equals("x--", {'x':5}, 5, {'x':4})
+
+
 
 def test_evaluate_subtraction():
     print("test evaluate subtraction")
@@ -1348,4 +1388,8 @@ if __name__ == "__main__":
     test_control_flow_scoping_rules()
     test_evaluate_prefix_increment()
     test_evaluate_postfix_increment()
+    test_evaluate_subtraction()
+    test_evaluate_subtract_assignment()
+    test_evaluate_prefix_decrement()
+    test_evaluate_postfix_decrement()
     print("done.")
